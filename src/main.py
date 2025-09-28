@@ -6,11 +6,21 @@ from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from datetime import datetime, UTC
 import random
 import string
+import os
 from fastapi.staticfiles import StaticFiles
 
-# --- Database Setup (In-memory SQLite for MVP) ---
-DATABASE_URL = "sqlite:///./test.db"
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+# --- Database Setup ---
+# Use environment variable for production, fallback to SQLite for development
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")
+
+engine = create_engine(DATABASE_URL)
+
+# Add a check for SQLite to handle connect_args
+if "sqlite" in DATABASE_URL:
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+else:
+    engine = create_engine(DATABASE_URL)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

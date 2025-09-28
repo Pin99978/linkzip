@@ -28,3 +28,16 @@
 1.  **建置更新後的前端應用**
     *   **內容**：在前端工程師完成 UI 重構和新功能開發後，執行 `npm run build` 指令。
     *   **目的**：產生包含了新介面和「一鍵複製」功能的生產級別靜態檔案，以便後端伺服器能夠提供最新的版本給使用者。
+
+---
+
+**工作項目 (架構升級)：**
+
+1.  **引入 Docker Compose 管理多容器應用**
+    *   **動機**：為了模擬真實生產環境，我們需要同時管理後端應用和一個獨立的資料庫服務。
+    *   **執行**：撰寫 `docker-compose.yml` 檔案，在其中定義了 `backend` 和 `db` 兩個服務。
+
+2.  **透過 Docker Compose 管理 PostgreSQL**
+    *   **「安裝」方式**：我們沒有在主機上安裝 PostgreSQL，而是在 `docker-compose.yml` 中指定 `image: postgres:13`。這會讓 Docker 自動從 Docker Hub 下載官方的 PostgreSQL 映像檔並作為一個容器運行。
+    *   **環境設定**：透過 `environment` 關鍵字，我們在啟動容器時向其內部傳入 `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` 等環境變數，用以在容器首次啟動時自動初始化資料庫。
+    *   **資料持久化**：這是最關鍵的一步。我們設定了 `volumes: - postgres_data:/var/lib/postgresql/data/`。這會將容器內 PostgreSQL 存放資料的目錄，映射到一個由 Docker 管理的、在主機上的具名磁碟區 `postgres_data`。這樣做可以確保即使我們用 `docker-compose down` 關閉並移除了容器，資料庫的數據依然會被保留下來，下次啟動時能無縫接軌。

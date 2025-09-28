@@ -71,3 +71,10 @@ async def redirect_to_original_url(short_key: str):
 4.  **整合前端：提供靜態檔案服務**
     *   **內容**：在 `main.py` 中匯入 `StaticFiles`，並在所有 API 路由之後，使用 `app.mount("/", ...)` 將 `frontend/build` 目錄掛載到根路徑。
     *   **目的**：實現單一伺服器模式，簡化部署和測試流程，讓使用者只需訪問後端埠即可獲得完整應用體驗。
+
+5.  **架構升級：遷移至 PostgreSQL**
+    *   **動機**：為了讓專案更接近生產環境，我們需要從檔案型的 SQLite 遷移到更強大的主從式資料庫 PostgreSQL。
+    *   **為什麼是 PostgreSQL?**：相較於 SQLite，PostgreSQL 是一個獨立運行的服務。它天生就為處理大量「同時」的讀寫請求而設計，提供了更強的效能、穩定性和資料一致性保障，是真實線上服務的首選。
+    *   **執行**：
+        1.  在 `requirements.txt` 中加入 `psycopg2-binary` 這個 PostgreSQL 驅動程式。
+        2.  修改 `src/main.py`，讓資料庫連接字串 `DATABASE_URL` 從環境變數中讀取，如果讀取不到，則退回使用本地的 SQLite。這讓我們的程式碼在開發和生產環境中都能靈活運作。
