@@ -49,3 +49,24 @@
         1.  **下載腳本**：將 `wait-for-it.sh` 腳本儲存到專案根目錄。
         2.  **修改 Dockerfile**：將該腳本複製到映像檔中，並賦予其執行權限 (`RUN chmod +x wait-for-it.sh`)。
         3.  **修改 docker-compose.yml**：修改 `backend` 服務的 `command`，讓它在啟動 `uvicorn` 之前，先執行 `./wait-for-it.sh db:5432 -- ...`。這個指令會持續檢查 `db` 服務的 `5432` 埠是否可以連線，直到成功後，才會執行 `--` 後面的主程式。這確保了我們的應用在啟動時，資料庫絕對是可用的。
+
+4.  **升級 Dockerfile 為多階段建置**
+    *   **動機**：為了優化映像檔大小、提升安全性並簡化貢獻者流程。
+    *   **執行**：
+        1.  將 `Dockerfile` 重寫為兩個階段：`builder` 和 `final`。
+        2.  `builder` 階段：使用 `node:18-alpine` 映像，完整建置 React 前端。
+        3.  `final` 階段：使用 `python:3.12-slim` 映像，只從 `builder` 階段複製已建置好的 `frontend/build` 目錄，不再包含任何 Node.js 或前端原始碼。
+        4.  修改 `.dockerignore`，移除 `frontend/`，以允許 Docker 存取前端原始碼進行建置。
+
+5.  **除錯 Docker Compose 重建錯誤**
+    *   **問題**：在雲端主機上執行 `docker compose up --build` 時，出現 `KeyError: 'ContainerConfig'`。
+    *   **診斷**：這是 Docker Compose 在嘗試「重新建立」一個已存在的、且狀態可能與新版指令不相容的容器時，發生的內部錯誤。
+    *   **解決方案**：採用最直接可靠的「清理重建」策略。執行 `docker compose down -v`，徹底移除舊的容器、網路和**資料磁碟區**，然後再執行 `docker compose up --build -d`，讓所有東西在一個乾淨的狀態下被全新建立。
+
+3.  **解決服務啟動的「競態條件」問題**
+    *   **問題**：`docker-compose up` 啟動時，後端應用 (`backend`) 崩潰，日誌顯示 `connection refused`。
+    *   **診斷**：這是一個典型的競態條件。`depends_on` 只保證了 `db` 容器比 `backend` 容器先**啟動**，但無法保證 `db` 容器內的 PostgreSQL 服務已經**準備好接受連線**。我們的後端應用啟動太快，在資料庫準備好之前就嘗試連線，因此被拒絕。
+    *   **解決方案 (標準流程)**：引入一個健康檢查腳本 `wait-for-it.sh`。
+        1.  **下載腳本**：將 `wait-for-it.sh` 腳本儲存到專案根目錄。
+        2.  **修改 Dockerfile**：將該腳本複製到映像檔中，並賦予其執行權限 (`RUN chmod +x wait-for-it.sh`)。
+        3.  **修改 docker-compose.yml**：修改 `backend` 服務的 `command`，讓它在啟動 `uvicorn` 之前，先執行 `./wait-for-it.sh db:5432 -- ...`。這個指令會持續檢查 `db` 服務的 `5432` 埠是否可以連線，直到成功後，才會執行 `--` 後面的主程式。這確保了我們的應用在啟動時，資料庫絕對是可用的。
