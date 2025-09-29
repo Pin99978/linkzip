@@ -1,30 +1,45 @@
-# 1. Base Image
-# We use a slim image to keep the size small.
+# --- Stage 1: Build Frontend ---
+FROM node:18-alpine AS builder
+
+# Set working directory
+WORKDIR /app/frontend
+
+# Copy package files and install dependencies
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm install
+
+# Copy frontend source code
+COPY frontend/ .
+
+# Build the frontend
+RUN npm run build
+
+# --- Stage 2: Final Production Image ---
 FROM python:3.12-slim
 
-# 2. Set Environment Variables
-# Prevents Python from writing pyc files to disc (equivalent to python -B)
+# Set Environment Variables
 ENV PYTHONDONTWRITEBYTECODE=1
-# Ensures Python output is sent straight to the terminal without buffering
 ENV PYTHONUNBUFFERED=1
 
-# 3. Set Work Directory
+# Set Work Directory
 WORKDIR /app
 
-# 4. Install Dependencies
-# Copy the requirements file first to leverage Docker layer caching.
-# If requirements.txt doesn't change, Docker won't re-run this layer.
+# Install Dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 5. Copy Application Code
+# Copy wait-for-it script
+COPY wait-for-it.sh .
+RUN chmod +x wait-for-it.sh
+
+# Copy Backend Application Code
 COPY ./src /app/src
 
-# 6. Expose Port
-# Make port 8000 available to the world outside this container.
+# Copy Built Frontend from Builder Stage
+COPY --from=builder /app/frontend/build /app/frontend/build
+
+# Expose Port
 EXPOSE 8000
 
-# 7. Run Application
-# Command to run the app using uvicorn.
-# --host 0.0.0.0 is crucial to allow connections from outside the container.
+# Run Application
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
