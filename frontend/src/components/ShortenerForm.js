@@ -57,7 +57,7 @@ function ShortenerForm({ title, placeholder }) {
             if (!response.ok) {
                 setError(data.detail || 'An error occurred.');
             } else {
-                const fullShortUrl = `http://localhost:8000/${data.short_key}`;
+                const fullShortUrl = `${window.location.origin}/${data.short_key}`;
                 setShortUrl(fullShortUrl);
             }
         } catch (err) {
