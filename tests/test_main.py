@@ -6,34 +6,48 @@ from sqlalchemy.orm import sessionmaker
 from src.main import app, get_db, Base
 
 # --- Test Database Setup ---
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test_temp.db"
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
-)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# This test suite expects a PostgreSQL database to be running on localhost:5433,
+# which can be started with `docker-compose up -d`.
+SQLALCHEMY_DATABASE_URL = "postgresql://user:password@localhost:5433/linkzipdb"
 
-# --- Dependency Override for Testing ---
-def override_get_db():
-    try:
-        db = TestingSessionLocal()
-        yield db
-    finally:
-        db.close()
+@pytest.fixture(scope="session")
+def test_db_engine():
+    return create_engine(SQLALCHEMY_DATABASE_URL)
 
-# Tell the app to use our test DB instead of the real one
-app.dependency_overrides[get_db] = override_get_db
-
-# --- Test Client Setup ---
 @pytest.fixture(scope="function")
-def client():
-    # Create tables for each test function
-    Base.metadata.create_all(bind=engine)
+def dbsession(test_db_engine):
+    """Yield a new database session for a test, and rollback any changes."""
+    connection = test_db_engine.connect()
+    trans = connection.begin()
+    Session = sessionmaker(bind=connection)
+    session = Session()
+
+    # Create all tables for the test
+    Base.metadata.create_all(bind=connection)
+
+    yield session
+
+    # Rollback and close the session
+    session.close()
+    trans.rollback()
+    connection.close()
+
+    # Drop all tables after the test
+    Base.metadata.drop_all(bind=test_db_engine)
+
+@pytest.fixture(scope="function")
+def client(dbsession):
+    """Yield a test client that uses the test database session."""
+    def override_get_db():
+        yield dbsession
+
+    app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as c:
         yield c
-    # Drop tables after each test function
-    Base.metadata.drop_all(bind=engine)
+    del app.dependency_overrides[get_db]
 
-# === Test Cases ===
+
+# === Test Cases (No changes needed) ===
 
 def test_create_short_url_success(client):
     """Test creating a short URL successfully."""
@@ -58,11 +72,9 @@ def test_create_short_url_invalid_format(client):
 
 def test_redirect_to_original_url_success(client):
     """Test redirection with a valid short key."""
-    # First, create a URL
     create_response = client.post("/api/urls", json={"original_url": "https://www.example.com"})
     short_key = create_response.json()["short_key"]
 
-    # Then, test redirection (follow_redirects=False is crucial to inspect the 307 response)
     redirect_response = client.get(f"/{short_key}", follow_redirects=False)
     assert redirect_response.status_code == 307
     assert redirect_response.headers["location"] == "https://www.example.com"
